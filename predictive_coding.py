@@ -40,3 +40,32 @@ import numpy as np
                  self.weights[i] += self.lr_weight * np.outer(self.errors[i], self.states[i+1])
              for i in range(len(self.lateral_weights)):
                  self.lateral_weights[i] += self.lr_weight * np.outer(self.states[i+1], self.states[i+1])
+         
+         def train(self, data, num_iterations=10):
+             for _ in range(num_iterations):
+                 self.forward()
+                 self.compute_errors()
+                 self.update_states()
+                 self.update_weights()
+         
+         def predict(self, input_data):
+             self.states[0] = input_data
+             self.forward()
+             return np.argmax(self.states[-1])
+
+     # Load MNIST dataset
+     transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
+     train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
+     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+
+     # Initialize model
+     model = PredictiveCodingModel()
+
+     # Training loop
+     for epoch in range(1):
+         for images, labels in train_loader:
+             images = images.view(-1).numpy()
+             model.states[0] = images
+             model.train(images)
+             pred = model.predict(images)
+             print(f"Predicted: {pred}, Actual: {labels.item()}")
