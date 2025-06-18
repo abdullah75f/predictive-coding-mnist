@@ -41,7 +41,7 @@ class PredictiveCodingModel:
         for i in range(len(self.lateral_weights)):
             self.lateral_weights[i] += self.lr_weight * np.outer(self.states[i+1], self.states[i+1])
     
-    def train(self, data, num_iterations=10):
+    def train(self, data, num_iterations=20):  # Increased iterations
         for _ in range(num_iterations):
             self.forward()
             self.compute_errors()
