@@ -24,3 +24,7 @@ import numpy as np
              for i in range(1, self.num_layers-1):
                  lateral_effect = np.dot(self.lateral_weights[i-1], self.states[i])
                  self.states[i] += self.lr_state * lateral_effect
+         
+         def compute_errors(self):
+             for i in range(self.num_layers-1):
+                 self.errors[i] = self.states[i] - self.predictions[i]
