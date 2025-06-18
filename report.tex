@@ -1,0 +1,41 @@
+\documentclass[a4paper,12pt]{article}
+     \usepackage{amsmath}
+     \usepackage{geometry}
+     \geometry{margin=1in}
+     \usepackage{parskip}
+     \usepackage{noto}
+
+     \begin{document}
+
+     \title{Predictive Coding Model for MNIST Classification}
+     \author{Abdullah Farid}
+     \date{June 18, 2025}
+     \maketitle
+
+     \section{Introduction}
+     Predictive coding is a computational framework inspired by neuroscience, positing that the brain predicts sensory inputs and updates its internal model based on prediction errors. This report outlines the implementation of a minimal predictive coding model for MNIST image classification, incorporating lateral connections to model feature interactions. The logical flow from theory to implementation is detailed, covering model design, error computation, state and weight updates, and evaluation.
+
+     \section{Predictive Coding Theory}
+     In predictive coding, a hierarchical neural network predicts lower-layer activities, computes prediction errors as mismatches between predictions and actual inputs, and uses these errors to update node states and synaptic weights. Each layer $l$ maintains a state $x_l$, predicting the state of the layer below, $x_{l-1}$, via forward weights $W_l$: $\hat{x}_{l-1} = W_l x_l$. The prediction error is $e_{l-1} = x_{l-1} - \hat{x}_{l-1}$. Errors propagate upward to adjust higher-layer states, and weights are updated to minimize errors. Lateral connections within a layer model feature interactions, enhancing prediction accuracy by capturing dependencies (e.g., pixel correlations in MNIST images). The model minimizes a free energy function, approximated as the sum of squared prediction errors.
+
+     \section{Model Design}
+     The implemented model has four layers: an input layer (784 nodes, corresponding to flattened 28x28 MNIST images), two hidden layers (256 and 64 nodes), and an output layer (10 nodes, one per digit). Forward weights connect adjacent layers, predicting lower-layer states. Lateral weights exist within hidden layers, allowing nodes to influence each other. The model uses NumPy for computations and PyTorch for MNIST data loading. Hyperparameters include state learning rate ($\eta_s = 0.1$) and weight learning rate ($\eta_w = 0.01$).
+
+     \section{Implementation}
+     The \texttt{PredictiveCodingModel} class encapsulates the model:
+     \begin{itemize}
+         \item \textbf{Initialization}: Sets up states, forward weights, lateral weights, and errors.
+         \item \textbf{Forward Pass}: Computes predictions: $\hat{x}_{l-1} = W_l x_l$. Applies lateral connections: $x_l \leftarrow x_l + \eta_s W_{\text{lateral}} x_l$.
+         \item \textbf{Error Computation}: Calculates errors: $e_{l-1} = x_{l-1} - \hat{x}_{l-1}$.
+         \item \textbf{State Updates}: Adjusts states: $x_l \leftarrow x_l + \eta_s (e_{l-1} - W_{l+1}^T e_l)$.
+         \item \textbf{Weight Updates}: Updates weights: $\Delta W_l = \eta_w e_{l-1} x_l^T$. Lateral weights update similarly.
+     \end{itemize}
+     The training loop processes MNIST images, updating states and weights iteratively. Classification uses the output layer’s state (argmax for digit prediction).
+
+     \section{Evaluation and Limitations}
+     The model is trained on MNIST, with images fed as 784-dimensional vectors. Preliminary tests show the model learns to classify digits by minimizing prediction errors, though accuracy depends on hyperparameter tuning and iterations. Lateral connections enhance feature extraction by modeling pixel correlations. Limitations include computational complexity due to iterative updates and sensitivity to learning rates. Future work could optimize convergence and explore deeper architectures.
+
+     \section{Conclusion}
+     This implementation demonstrates predictive coding’s core principles: hierarchical prediction, error-driven updates, and lateral interactions. Applied to MNIST, it showcases how errors guide learning in a biologically inspired model. The code is structured for clarity, with modular functions facilitating further extensions.
+
+     \end{document}
