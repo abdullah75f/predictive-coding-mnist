@@ -1,1 +1,2 @@
 # predictive-coding-mnist
+Implementation of a minimal predictive coding model for MNIST classification, including lateral connections. Includes a LaTeX report summarizing the theory and implementation.
