@@ -28,3 +28,15 @@ import numpy as np
          def compute_errors(self):
              for i in range(self.num_layers-1):
                  self.errors[i] = self.states[i] - self.predictions[i]
+         
+         def update_states(self):
+             for i in range(1, self.num_layers-1):
+                 error_feedback = np.dot(self.weights[i].T, self.errors[i])
+                 self.states[i] += self.lr_state * (self.errors[i-1] - error_feedback)
+             self.states[-1] += self.lr_state * np.dot(self.weights[-1].T, self.errors[-1])
+         
+         def update_weights(self):
+             for i in range(self.num_layers-1):
+                 self.weights[i] += self.lr_weight * np.outer(self.errors[i], self.states[i+1])
+             for i in range(len(self.lateral_weights)):
+                 self.lateral_weights[i] += self.lr_weight * np.outer(self.states[i+1], self.states[i+1])
