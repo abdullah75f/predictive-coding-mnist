@@ -69,3 +69,4 @@ import numpy as np
              model.train(images)
              pred = model.predict(images)
              print(f"Predicted: {pred}, Actual: {labels.item()}")
+             
