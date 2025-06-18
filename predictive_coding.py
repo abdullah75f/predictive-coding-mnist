@@ -9,13 +9,18 @@ import numpy as np
              self.num_layers = len(layer_sizes)
              self.lr_state = lr_state
              self.lr_weight = lr_weight
-             # Initialize states
              self.states = [np.zeros(size) for size in layer_sizes]
-             # Initialize forward weights (predict lower layer)
              self.weights = [np.random.randn(layer_sizes[i], layer_sizes[i-1]) * 0.01 
                              for i in range(1, self.num_layers)]
-             # Initialize lateral weights (within each hidden layer)
              self.lateral_weights = [np.random.randn(size, size) * 0.01 
                                      for size in layer_sizes[1:-1]]
-             # Initialize errors
              self.errors = [np.zeros(size) for size in layer_sizes[:-1]]
+         
+         def forward(self):
+             self.predictions = []
+             for i in range(1, self.num_layers):
+                 pred = np.dot(self.weights[i-1], self.states[i])
+                 self.predictions.append(pred)
+             for i in range(1, self.num_layers-1):
+                 lateral_effect = np.dot(self.lateral_weights[i-1], self.states[i])
+                 self.states[i] += self.lr_state * lateral_effect
