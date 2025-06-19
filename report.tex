@@ -1,41 +1,71 @@
 \documentclass[a4paper,12pt]{article}
-     \usepackage{amsmath}
-     \usepackage{geometry}
-     \geometry{margin=1in}
-     \usepackage{parskip}
-     \usepackage{noto}
+\usepackage{amsmath}
+\usepackage{geometry}
+\geometry{margin=1in}
+\usepackage{parskip}
+\usepackage{noto}
 
-     \begin{document}
+\begin{document}
 
-     \title{Predictive Coding Model for MNIST Classification}
-     \author{Abdullah Farid}
-     \date{June 18, 2025}
-     \maketitle
+\title{Predictive Coding Model for MNIST Classification}
+\author{Abdullah Farid}
+\date{June 18, 2025}
+\maketitle
 
-     \section{Introduction}
-     Predictive coding is a computational framework inspired by neuroscience, positing that the brain predicts sensory inputs and updates its internal model based on prediction errors. This report outlines the implementation of a minimal predictive coding model for MNIST image classification, incorporating lateral connections to model feature interactions. The logical flow from theory to implementation is detailed, covering model design, error computation, state and weight updates, and evaluation.
+\section{Introduction}
+Predictive coding is a computational framework inspired by neuroscience, positing that the brain actively predicts sensory inputs rather than passively processing them. It refines its internal model by learning from prediction errors—the mismatch between expectation and reality. This report outlines the successful implementation of a hierarchical predictive coding model for the task of MNIST image classification. The model incorporates both top-down predictions and lateral connections within hidden layers to model feature interactions. The logical flow from neuroscientific theory to a stable, working Python implementation is detailed, covering the model's architecture, its unique learning dynamics, and a final evaluation of its performance.
 
-     \section{Predictive Coding Theory}
-     In predictive coding, a hierarchical neural network predicts lower-layer activities, computes prediction errors as mismatches between predictions and actual inputs, and uses these errors to update node states and synaptic weights. Each layer $l$ maintains a state $x_l$, predicting the state of the layer below, $x_{l-1}$, via forward weights $W_l$: $\hat{x}_{l-1} = W_l x_l$. The prediction error is $e_{l-1} = x_{l-1} - \hat{x}_{l-1}$. Errors propagate upward to adjust higher-layer states, and weights are updated to minimize errors. Lateral connections within a layer model feature interactions, enhancing prediction accuracy by capturing dependencies (e.g., pixel correlations in MNIST images). The model minimizes a free energy function, approximated as the sum of squared prediction errors.
+\section{Predictive Coding Theory}
+The core tenet of predictive coding is the minimization of prediction error (or "surprise") throughout a neural hierarchy. The system operates through two distinct but interconnected mechanisms:
 
-     \section{Model Design}
-     The implemented model has four layers: an input layer (784 nodes, corresponding to flattened 28x28 MNIST images), two hidden layers (256 and 64 nodes), and an output layer (10 nodes, one per digit). Forward weights connect adjacent layers, predicting lower-layer states. Lateral weights exist within hidden layers, allowing nodes to influence each other. The model uses NumPy for computations and PyTorch for MNIST data loading. Hyperparameters include state learning rate ($\eta_s = 0.1$) and weight learning rate ($\eta_w = 0.01$).
+\begin{itemize}
+    \item \textbf{Inference:} The rapid adjustment of neural activity (\textbf{states}, $x_i$) to find the most likely cause of the current sensory input. This process minimizes immediate prediction error.
+    \item \textbf{Learning:} The slow adjustment of synaptic connections (\textbf{weights}, $W_i$) to improve the accuracy of future predictions.
+\end{itemize}
 
-     \section{Implementation}
-     The \texttt{PredictiveCodingModel} class encapsulates the model:
-     \begin{itemize}
-         \item \textbf{Initialization}: Sets up states, forward weights, lateral weights, and errors.
-         \item \textbf{Forward Pass}: Computes predictions: $\hat{x}_{l-1} = W_l x_l$. Applies lateral connections: $x_l \leftarrow x_l + \eta_s W_{\text{lateral}} x_l$.
-         \item \textbf{Error Computation}: Calculates errors: $e_{l-1} = x_{l-1} - \hat{x}_{l-1}$.
-         \item \textbf{State Updates}: Adjusts states: $x_l \leftarrow x_l + \eta_s (e_{l-1} - W_{l+1}^T e_l)$.
-         \item \textbf{Weight Updates}: Updates weights: $\Delta W_l = \eta_w e_{l-1} x_l^T$. Lateral weights update similarly.
-     \end{itemize}
-     The training loop processes MNIST images, updating states and weights iteratively. Classification uses the output layer’s state (argmax for digit prediction).
+In our hierarchical model, a higher layer $i+1$ generates a top-down prediction of the activity in the layer below, $i$. The prediction error $e_i$ is the difference between the actual state $x_i$ and its prediction $\hat{x}_i$. These errors serve as the primary drivers for both inference and learning.
 
-     \section{Evaluation and Limitations}
-     The model is trained on MNIST, with images fed as 784-dimensional vectors. Preliminary tests show the model learns to classify digits by minimizing prediction errors, though accuracy depends on hyperparameter tuning and iterations. Lateral connections enhance feature extraction by modeling pixel correlations. Limitations include computational complexity due to iterative updates and sensitivity to learning rates. Future work could optimize convergence and explore deeper architectures.
+Key equations governing the dynamics are:
+\begin{enumerate}
+    \item \textbf{Prediction:} The prediction of layer $i$'s state is generated from layer $i+1$: 
+    \[ \hat{x}_i = f(W_i x_{i+1} + b_i) \]
+    where $f$ is a non-linear activation function (ReLU in our case).
 
-     \section{Conclusion}
-     This implementation demonstrates predictive coding’s core principles: hierarchical prediction, error-driven updates, and lateral interactions. Applied to MNIST, it showcases how errors guide learning in a biologically inspired model. The code is structured for clarity, with modular functions facilitating further extensions.
+    \item \textbf{Prediction Error:} The error at layer $i$ is the discrepancy between its state and its prediction:
+    \[ e_i = x_i - \hat{x}_i \]
 
-     \end{document}
+    \item \textbf{State Update (Inference):} The state of a hidden layer neuron $x_i$ is updated to reduce error from both above and below. The change in state, $\Delta x_i$, is driven by a bottom-up signal and a top-down signal:
+    \[ \Delta x_i \propto (W_{i-1}^T e_{i-1}) - e_i \]
+    
+    \item \textbf{Weight Update (Learning):} Synaptic weights are updated according to a Hebbian-like rule, based on the final settled states and errors:
+    \[ \Delta W_i \propto e_i \cdot f(x_{i+1})^T \]
+\end{enumerate}
+
+\section{Model Design and Implementation}
+The model is implemented as a Python class, \texttt{PredictiveCodingModel}, using NumPy for computations and PyTorch for the MNIST data pipeline.
+
+\subsection{Architecture}
+The network has four layers: an input layer (784 nodes for a flattened 28x28 image), two hidden layers (256 and 64 nodes), and an output layer (10 nodes, one per digit class).
+\begin{itemize}
+    \item \textbf{Forward Weights ($W_i$):} Connect adjacent layers and are responsible for generating top-down predictions.
+    \item \textbf{Lateral Weights ($W_{\text{lateral}}$):} Exist within each hidden layer, allowing neurons to interact and mutually influence their states. This encourages competition and the formation of feature assemblies.
+    \item \textbf{States ($x_i$):} Represent the current activation of neurons in each layer.
+    \item \textbf{Errors ($e_i$):} Represent the prediction error at each layer.
+\end{itemize}
+
+\subsection{The Learning Process: From Theory to Practice}
+Translating the theory into a stable learning algorithm required several key implementation details, discovered through iterative development. The training process for a single sample is orchestrated by the \texttt{train()} method and consists of three distinct phases.
+
+\textbf{Phase 0: Providing a Teacher Signal via Clamping}
+For supervised classification, the model must be informed of the correct answer. This is achieved by \textbf{clamping} the output layer: the state vector of the final layer, $x_{\text{out}}$, is forcibly set to the one-hot encoded vector of the true label and is held constant throughout the inference phase. This provides a strong, unambiguous error signal that propagates down to the hidden layers.
+
+\textbf{Phase 1: Inference via State Settling}
+With the input layer holding the image and the output layer clamped, the model enters an iterative inference loop for a fixed number of steps (e.g., 50 iterations):
+\begin{enumerate}
+    \item \texttt{forward()}: Top-down predictions are generated at all layers.
+    \item \texttt{compute\_errors()}: Prediction errors are calculated. To ensure numerical stability and prevent exploding dynamics, these errors are \textbf{clipped} to a fixed range [-1.0, 1.0].
+    \item \texttt{update\_states()}: The states of the hidden layers ($x_1, x_2$) are updated according to the dynamics described in Section 2. The clamped output layer is not updated. This loop allows the hidden states to settle into a configuration that best reconciles the sensory input with the clamped (correct) output.
+\end{enumerate}
+
+\textbf{Phase 2: Learning via Weight Updates}
+After the inference loop completes, the \texttt{update\_weights()} method is called \textbf{once}.
