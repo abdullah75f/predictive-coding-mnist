@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+import os
 
 class PredictiveCodingModel:
     def __init__(self, layer_sizes=[784, 256, 64, 10], lr_state=0.05, lr_weight=0.002):
@@ -15,6 +16,24 @@ class PredictiveCodingModel:
         self.biases = [np.zeros(layer_sizes[i-1]) for i in range(1, self.num_layers)]
         self.states = [np.zeros(size) for size in self.layer_sizes]
         self.errors = [np.zeros(size) for size in self.layer_sizes[:-1]]
+
+    def save_model(self, filename='trained_pc_model.npz'):
+        """Saves the model's weights and biases to a file."""
+        # Convert lists to object arrays to handle different shapes
+        weights_array = np.array(self.weights, dtype=object)
+        biases_array = np.array(self.biases, dtype=object)
+        np.savez_compressed(filename, weights=weights_array, biases=biases_array)
+        print(f"Model saved to {filename}")
+
+    def load_model(self, filename='trained_pc_model.npz'):
+        """Loads the model's weights and biases from a file."""
+        if not os.path.exists(filename):
+            raise FileNotFoundError(f"Model file not found: {filename}. Please train the model first by running predictive_coding.py.")
+        
+        data = np.load(filename, allow_pickle=True)
+        self.weights = data['weights'].tolist()
+        self.biases = data['biases'].tolist()
+        print(f"Model loaded from {filename}")
 
     def reset_states(self):
         for i in range(1, len(self.states)):
@@ -35,7 +54,6 @@ class PredictiveCodingModel:
     def compute_errors(self):
         for i in range(self.num_layers - 1):
             self.errors[i] = self.states[i] - self.predictions[i]
-            # --- FIX 1: Clip the errors to prevent them from exploding ---
             self.errors[i] = np.clip(self.errors[i], -1.0, 1.0)
     
     def update_states(self, clamp_output=False):
@@ -54,98 +72,78 @@ class PredictiveCodingModel:
         for i in range(self.num_layers-1):
             weight_update = self.lr_weight * np.outer(self.errors[i], self.relu(self.states[i+1]))
             bias_update = self.lr_weight * self.errors[i]
-            
             self.weights[i] += weight_update
             self.biases[i] += bias_update
-            # --- FIX 2: Re-introduce weight decay for regularization and stability ---
             self.weights[i] -= 0.0001 * self.weights[i]
     
     def train(self, data, target, num_iterations=50):
         self.reset_states()
         self.states[0] = data
-        
         one_hot_target = np.zeros(self.layer_sizes[-1])
         one_hot_target[target] = 1
         self.states[-1] = one_hot_target
-        
         for _ in range(num_iterations):
             self.forward()
             self.compute_errors()
             self.update_states(clamp_output=True)
-
         self.update_weights()
     
     def predict(self, input_data, num_iterations=50):
         self.reset_states()
         self.states[0] = input_data
-        
         for _ in range(num_iterations):
             self.forward()
             self.compute_errors()
             self.update_states(clamp_output=False)
-            
         output = self.states[-1]
         if np.sum(output) == 0: return np.random.randint(0, 10)
         exp_output = np.exp(output - np.max(output))
         probabilities = exp_output / np.sum(exp_output)
         return np.argmax(probabilities)
 
-# Data loading pipeline
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.5,), (0.5,)),
-    transforms.Lambda(lambda x: torch.flatten(x))
-])
+if __name__ == "__main__":
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,), (0.5,)),
+        transforms.Lambda(lambda x: torch.flatten(x))
+    ])
+    train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
+    test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
+    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+    
+    model = PredictiveCodingModel(layer_sizes=[784, 256, 64, 10], lr_state=0.05, lr_weight=0.002)
+    
+    num_epochs = 3
+    max_samples_per_epoch = 10000
 
-train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
-test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
-train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+    print("Starting training...")
+    for epoch in range(num_epochs):
+        correct = 0
+        total = 0
+        for i, (images, labels) in enumerate(train_loader):
+            if i >= max_samples_per_epoch: break
+            images_np = images.numpy().squeeze()
+            labels_np = labels.numpy().item()
+            model.train(images_np, target=labels_np)
+            pred = model.predict(images_np)
+            if pred == labels_np: correct += 1
+            total += 1
+            if (total % 1000 == 0) and total > 0:
+                print(f"Epoch {epoch+1}, Sample {total}/{max_samples_per_epoch}, Running Training Accuracy: {100 * correct / total:.2f}%")
+        print(f"--- Epoch {epoch+1} Final Training Accuracy: {100 * correct / total:.2f}% ---")
 
-# Initialize model with slightly tuned learning rates for stability
-model = PredictiveCodingModel(layer_sizes=[784, 256, 64, 10], lr_state=0.05, lr_weight=0.002)
-
-# Training loop
-num_epochs = 3
-max_samples_per_epoch = 10000
-
-print("Starting training...")
-for epoch in range(num_epochs):
+    print("\nStarting testing...")
     correct = 0
     total = 0
-    for i, (images, labels) in enumerate(train_loader):
-        if i >= max_samples_per_epoch:
-            break
+    max_test_samples = 2000
+    for i, (images, labels) in enumerate(test_loader):
+        if i >= max_test_samples: break
         images_np = images.numpy().squeeze()
         labels_np = labels.numpy().item()
-        
-        model.train(images_np, target=labels_np)
-        
         pred = model.predict(images_np)
-        if pred == labels_np:
-            correct += 1
+        if pred == labels_np: correct += 1
         total += 1
-        
-        if (total % 1000 == 0) and total > 0:
-            print(f"Epoch {epoch+1}, Sample {total}/{max_samples_per_epoch}, Running Training Accuracy: {100 * correct / total:.2f}%")
-            
-    print(f"--- Epoch {epoch+1} Final Training Accuracy: {100 * correct / total:.2f}% ---")
+    print(f"Final Test Accuracy on {total} samples: {100 * correct / total:.2f}%")
 
-# Test loop
-print("\nStarting testing...")
-correct = 0
-total = 0
-max_test_samples = 2000
-
-for i, (images, labels) in enumerate(test_loader):
-    if i >= max_test_samples:
-        break
-    images_np = images.numpy().squeeze()
-    labels_np = labels.numpy().item()
-    
-    pred = model.predict(images_np)
-    if pred == labels_np:
-        correct += 1
-    total += 1
-
-print(f"Final Test Accuracy on {total} samples: {100 * correct / total:.2f}%")
+    model.save_model('trained_pc_model.npz')
